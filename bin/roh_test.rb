@@ -6,6 +6,9 @@ USAGE = "Test for ROH https://en.wikipedia.org/wiki/Runs_of_Homozygosity\n\n"\
         "Usage:\n"\
         "./roh_test.rb --file=dna_raw_file.txt\n\n"
 
+# Stat variables
+@total_roh_mbs = 0
+
 def report_a_run
   @within_run = false
   if (@genotype_in_run == '??' && @run_length > @options[:no_call_threshold]) || (@run_length > @options[:length_threshold])
@@ -20,6 +23,8 @@ def report_a_run
 
     report = "#{chr_str} has a ROH of length #{@run_length} "\
           "from position #{@run_start_position} to position #{@prev_position} (%.2f Mb)" % bases
+
+    @total_roh_mbs += bases
 
     if (@heterozygous_count > 0)
       report += "\t(#{@heterozygous_count} heterozygous SNPs treated as homozygous)"
@@ -159,18 +164,22 @@ File.readlines(@options[:file]).each do |line|
       @within_run = true
       @run_start_position = position
       @run_length = 0
-      @heterozygous_count = -1
+      @heterozygous_count = 0
       @last_heterozygous = 0
     end
     @genotype_in_run = genotype
     @run_length += 1
   elsif @within_run
-    if (@run_length + 1) - @last_heterozygous > @options[:min_to_ignore_heterozygous]
+    length_without_heterozygous = (@run_length + 1) - @last_heterozygous
+    if length_without_heterozygous > @options[:min_to_ignore_heterozygous]
       # puts "#{@run_length} - #{@last_heterozygous} = #{(@run_length + 1) - @last_heterozygous} "
       @run_length += 1
       @last_heterozygous = @run_length
       @heterozygous_count += 1
+      next
     else
+      @heterozygous_count -=1 # Ignore the last one
+      @run_length -=1
       report_a_run
     end
   end
@@ -178,3 +187,6 @@ File.readlines(@options[:file]).each do |line|
   @prev_chr_number = chr_number
   @prev_position = position
 end
+
+# Print stat
+puts "Total Mb: %.2f Mb" % @total_roh_mbs
